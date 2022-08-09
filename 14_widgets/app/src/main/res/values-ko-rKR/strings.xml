@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">14_widgets</string>
+
+    <string name="hello">안녕~~</string>
+    <string name="button1_text">버튼 지로</string>
+</resources>

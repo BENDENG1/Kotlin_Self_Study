@@ -1,0 +1,112 @@
+# foreground service
+
+foreground service는 스마트폰을 켜보면 상단의 notification이 드래그해서 끌어내리면 나타나는데
+
+서비스와 notification을 띄워주는것을 알려주는데 백그라운드에서 실행되고 있으면 사용자에게 알려줌
+
+장시간 동작하는것을 막기위해 foreground service를 정의하게함
+
+foreground service로 되어있어서 장시간 돌아갈 수 있는데
+
+1000정도 찍었는데 그냥 서비스로 돌리면 어느순간에 끊기게 될거임
+
+장기간의 작업을 foreground service를 이요하여 진행하여야함
+
+이렇게 manifest에 permission을 줘야함
+
+`<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>`
+
+## MainActivity.kt
+
+```
+package com.gyroh.a10_04_foregroundservice
+
+import android.content.Intent
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.view.View
+import androidx.core.content.ContextCompat
+
+class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+    }
+
+    fun serviceStart(view: View) {
+        val intent = Intent(this,Foreground::class.java)
+        ContextCompat.startForegroundService(this,intent)
+    }
+
+    fun serviceStop(view:View){
+        val intent = Intent(this, Foreground::class.java)
+        stopService(intent) //ContextCompat에 없어서 stopService에 intent를 던져줌
+    }
+
+}
+```
+
+## Foreground.kt
+
+```
+package com.gyroh.a10_04_foregroundservice
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Intent
+import android.os.Binder
+import android.os.Build
+import android.os.IBinder
+import android.util.Log
+import androidx.core.app.NotificationCompat
+import kotlin.concurrent.thread
+
+class Foreground : Service() {
+
+    //foreground service가 띄우는 notification이 채널을 사용함
+    val CHANNEL_ID = "FGS153" //채널 아이디 설정
+    val NOTI_ID = 153
+
+    fun createNotificationChannel() {
+        if(Build.VERSION.SDK_INT>= Build.VERSION_CODES.O){
+            //(채널아이디, 이름, 중요도) -> 중요도에 따라서 소리랑 진동을 같이 오고 팝업을 띄워주는 중오됴에 따라서 달라짐
+            val serviceChannel = NotificationChannel(CHANNEL_ID,"FOREGROUND",NotificationManager.IMPORTANCE_DEFAULT)
+            //notificationmanager를 시스템서비스를통해서 생성하고
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(serviceChannel) //서비스채널 등록
+
+        }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+
+        createNotificationChannel()
+        val notification = NotificationCompat.Builder(this,CHANNEL_ID) //버전호환성을 위해 Compat를 사용
+            .setContentTitle("Foreground Service")  //제목
+            .setSmallIcon(R.mipmap.ic_launcher_round)
+            .build() //build까지하면 notification이 생성됨
+
+        startForeground(NOTI_ID,notification) //notificationid와 notification을 넘김으로써 foreground를 시작할것을 알림
+
+        runBackground()
+
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    fun runBackground() {
+thread(start = true){
+for( i in 0..1000) {
+                Thread.sleep(1000)
+                Log.d("서비스","COUNT ==>$i")
+            }
+}
+}
+
+    override fun onBind(intent: Intent): IBinder {
+        return Binder()
+    }
+}
+```
+
+activity_main.xml

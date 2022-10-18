@@ -1,0 +1,136 @@
+# 
+
+```
+package com.gyroh.a16_1_fileio
+
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import com.gyroh.a16_1_fileio.databinding.ActivityMainBinding
+import java.io.*
+
+class MainActivity : AppCompatActivity() {
+
+    val binding by lazy {ActivityMainBinding.inflate(layoutInflater)}
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(binding.root)
+
+        with(binding){
+            val directyoryname = "memo"
+            val filename = "memo02.txt"
+
+            btnSave.setOnClickListener {
+                val content = textWrite.text.toString()
+                writeTextFile(directyoryname, filename, content)
+            }
+
+            val path = directyoryname + "/" + filename
+            val writtenContent = readTextFile(path)
+            textRead.text = writtenContent
+
+        }
+    }
+
+    fun readTextFile(path : String) : String{
+        val fullpath =  File(filesDir.path + "/" + path) //path에는 디렉토리랑 파일명 같이 넘겨줄거임
+        if(!fullpath.exists()) return "" //없으면 아니면 그냥 돌려줌
+
+        //있다면
+        val reader = FileReader(fullpath) //파일 읽음
+        val buffer = BufferedReader(reader) // 버퍼로 한번 감싸줌
+
+        val result = StringBuilder() //StringBuffer() 도 가능 이것에 대한 비교를 진행하는것 추천
+        var temp:String? = ""
+
+        while(true){
+            temp = buffer.readLine()
+            if(temp == null) break
+            result.append(temp).append("\n") //줄별로 읽어서 복붙을 하는데 읽고 추가할때 개행도 넣어줘야함
+        }
+        buffer.close()
+        reader.close()
+        return result.toString()
+    }
+
+    fun writeTextFile(directory:String, filename:String, content:String) {
+        //앱 기본경로 /files / memo 디렉토리가 생상되는 아래 코드
+        val dir = File(filesDir.path +"/" +directory) //전달된 디렉토레 파일 이름을 넘겨주면 파일로 생성이 됨
+        if(!dir.exists()) dir.mkdir() //dir이 없으면 디렉토리를 생성함
+
+        val fullpath = dir.path + "/" + filename
+        val writer = FileWriter(fullpath)
+        val buffer = BufferedWriter(writer) //속도를 빠르게 하기 위해서 버퍼로 한번 감씨줌
+        buffer.write(content) // 컨텐트를 적어줌
+        buffer.close()
+        writer.close()
+
+    }
+
+}
+```
+
+mainActivity.kt
+
+```
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/textView2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="파일 입출력"
+        android:textSize="25sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/textRead"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:hint="파일 읽은 내용"
+        android:textAlignment="center"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.454"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textView2" />
+
+    <TextView
+        android:id="@+id/textWrite"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:hint="내용을 입력하세요."
+        android:inputType="textMultiLine|text"
+        android:textAlignment="center"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textRead" />
+
+    <Button
+        android:id="@+id/btnSave"
+        android:layout_width="wrap_content"
+        android:layout_height="0dp"
+        android:text="저장하기"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textWrite" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+```
+
+activity_main.xml

@@ -1,0 +1,330 @@
+# content resolver (뮤직플레이어)
+
+노래 뮤직 플레이어를 만들게 될거다
+
+우선 권한 설정을 진행해준다. 음악을 재생하려면 당연히 우리 저장소를 읽어와야한다.
+
+`<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>`
+
+recyclerview에서 listitem속성에 내가 만든 item_layout을 적용한다.
+
+가끔 layout을 적용할때 (메뉴 적용할때도 그랬음) 그럴때는 Build에 cleanproject를 싹 돌려주면 그냥 바로 다시 적용되서 인식이 된다 꿀팁
+
+길이같은것을 가지는 클래스를 하나 만들어줄건데 컬렉션이 넣어두고 list에서 보여줄때는 반복문을 돌려서 클래스의 데이터를 보여줌
+
+클래스의 원래 음원은 content resolver를 통해서 일종의 데이터베이스에서 가져오는건데 데이터베이스에서 가져온 값들을 클래스에 하나씩 넣고 adapter는 recyclerview를 통해서 하나식 채워줄거임
+
+홀더와 리사이클러뷰홀더의 개념을 다시 알아야 이해하는것이 편하다.
+
+어라라? 이거 몇개들 id가 인식을 못한다. 왜그럴까? 그래서 나는
+
+buildgradle에 `id 'kotlin-android-extensions'` 를 추가하고 syncnow를 눌렀더니 해결이 되었다!
+
+## MainActivity.kt
+
+```
+package com.gyroh.contentresolver
+
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.provider.MediaStore
+import android.widget.Toast
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.gyroh.contentresolver.databinding.ActivityMainBinding
+import kotlinx.android.synthetic.main.activity_main.*
+
+class MainActivity : AppCompatActivity() {
+    val binding by lazy{ActivityMainBinding.inflate(layoutInflater)}
+
+//외부저장소를 읽지 못하면 앱이 의미가 없는거임
+//    val permissions = arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE) // 앱의 여러 권한일때 이렇게하고
+    val permission = Manifest.permission.READ_EXTERNAL_STORAGE
+    val REQ_READ = 99 //요청코드
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(binding.root)
+
+        if(isPermitted()){
+            startProcess()
+        }else{
+            ActivityCompat.requestPermissions(this, arrayOf(permission),REQ_READ) //권한 얻기
+        }
+
+    }
+
+    //빼내는 이유는 코드 조각을 분리하는것도 있지만 승인이 되지 않았을때
+    //onRequestPermissionsResult에서도 한번더 사용하기 위해서 사용
+    fun startProcess() {
+        //adapter를 생성해야함
+        val adapter = MusicAdapter()
+        adapter.musicList.addAll(getMusicList())
+
+        recyclerView.adapter = adapter
+        recyclerView.layoutManager = LinearLayoutManager(this)
+
+    }
+
+    fun getMusicList() : List<Music>{
+        //컨텐트 리졸버로 음원 목록 가져오기
+        // 1. 데이터 테이블 주소 - 가져오기
+        val musicListUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        // 2. 가져올 데이터 컬럼 정의
+        val proj = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.DURATION
+        )
+        // 3. 컨텐트 리졸버에 해당 데이터를 요청
+        // 커서타입 -> 현재위치를 가지고 있는 컬렉션
+        val cursor = contentResolver.query(musicListUri,proj,null, null, null)
+        // 4. 커서로 전달받은 데이터를 꺼내서 저장
+        val musicList = mutableListOf<Music>()
+        // 반복문을 돌면서 커서를 꺼냄
+        while(cursor?.moveToNext() ?: false){ //커서가 null이 넘어올수 있음 contentresolver의 query는 null이 허용됨
+            //그래서 cursor? -> nullsafety가능 그러면 while문이 동작이 안하겠지  // ?: false -> null이면 처리하지마라.
+            val id = cursor!!.getString(0)
+            val title = cursor!!.getString(1)
+            val artist = cursor!!.getString(2)
+            val albumId = cursor!!.getString(3)
+            val duration = cursor!!.getLong(4)
+            /* val id = cursor?.getString(0) ?: 0 보다 아랫것을 보자
+            느낌표는 되도록 쓰지 않는데 cursor!!.get~~ 일때 0이면 앱이 죽어버리는데 cursor?.moveToNext() ?: false에서
+             null을 처리해주므로 null일수는 없음
+            그러므로 !!로 써줄 수 있음 -> 공부하기
+             */
+
+            //music class만들고 만들면서 생성자에다가 값을 하나씩 던져줄거임
+            val music = Music(id, title, artist, albumId, duration)
+            musicList.add(music) //목록단위이므로 추가추가
+        }
+        //cursor?.close() // 닫아주는게 좋지 않을까?
+        return musicList
+    }
+
+   fun isPermitted() :Boolean{  //책에서는 checkPermission임
+//        if(ContextCompat.checkSelfPermission(this,permission) != PackageManager.PERMISSION_GRANTED){
+//            return false
+//        }
+//        return true
+        //권한이 하나라면 위에 코드를 아래처럼 바꿀 수 있음
+        return (ContextCompat.checkSelfPermission(this,permission) == PackageManager.PERMISSION_GRANTED)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        if (requestCode == REQ_READ){
+            if(grantResults[0] == PackageManager.PERMISSION_GRANTED){
+                startProcess()
+            }
+            else{
+                Toast.makeText(this,"권한 요청을 승인해야지만 앱을 실행할 수 있습니다.",Toast.LENGTH_SHORT).show()
+                finish()
+            }
+        }
+
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    }
+}
+```
+
+## MusicAdapter.kt
+
+```
+package com.gyroh.contentresolver
+
+import android.media.MediaPlayer
+import android.net.Uri
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView
+import kotlinx.android.synthetic.main.item_layout.view.*
+import java.text.SimpleDateFormat
+
+class MusicAdapter : RecyclerView.Adapter<MusicAdapter.Holder>(){ //adapter 미리정의한 Holder를 사용
+
+    val musicList =mutableListOf<Music>() //어댑터가 사용할 collection의 변수를 이름 정의
+    var mediaPlayer:MediaPlayer ?= null
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
+        //화면에서 사용되는 목록의 최대갯수만큼 아이템레이아웃을 생성할거임
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_layout,parent,false) //항상 이렇게 사용 예외없음
+        return Holder(view)
+    } //실제 아이템 레이아웃을 생성만 하는 함수
+
+    //요기서 값을 셋팅하는 함수
+    override fun onBindViewHolder(holder: Holder, position: Int) { //화면에 보여주는것을 그려주는 역할
+        val music = musicList[position]
+        holder.setMusic(music)
+    }
+
+    override fun getItemCount(): Int {
+        return musicList.size  // 사용할 데이터의 갯수를 알려줌
+    }
+
+    inner class Holder(itemView: View) : RecyclerView.ViewHolder(itemView){
+
+        var musicUri:Uri?= null //클릭을 했을때 동작을 해야하니깐 현재 uri를 저장하는 변수를 만듬듬
+
+        init{
+            itemView.setOnClickListener{
+if(mediaPlayer != null){
+                    mediaPlayer?.release()
+                    mediaPlayer = null
+                }
+                mediaPlayer = MediaPlayer.create(itemView.context,musicUri)
+                mediaPlayer?.start() //혹시모를 null체크
+}
+}
+
+        fun setMusic(music: Music){
+            musicUri = music.getMusicUri()
+            itemView.imageAlbum.setImageURI(music.getAlbumUri())
+            itemView.textArtist.text= music.artist
+            itemView.textTitle.text= music.title
+            val sdf = SimpleDateFormat("mm:ss")
+            itemView.textDuration.text= sdf.format(music.duration)
+        }
+    }
+}
+
+//원래 홀더를 밖으로 클래스를 빼는데 안으로 집어 넣은 이유는 우리가 음악을 클릭하면 중복을 방지하기 위해서
+```
+
+## Music.kt
+
+```
+package com.gyroh.contentresolver
+
+import android.net.Uri
+import android.provider.MediaStore
+
+class Music(id:String, title:String, artist:String, albumId:String, duration:Long) {
+
+    //음악에 필요한 아이디, 제목, 뮤지션이름, 엘범아이디,
+    var id: String = "" //하나의 음원이 가지고 있는 주소체계가 있는데 주소체계상의 아이디 값이 부여되어있음 즉, 음원자체의 ID
+    var title:String? = ""
+    var artist:String? = ""
+    var albumId: String? = "" //엘범단위 싱글로 낼수도 있음 앨범단위일때 음원이 여러개라도 동일한 앨범ID를 가짐 즉, 앨범 이미지 ID
+    var duration:Long? = 0
+
+    init { //생성자로 넘어온(위에 다섯개들) 값들을 셋팅
+        this.id = id //this가 붙은것은 내 클래스가 가지고 있는 맴버 변수
+        this.title = title
+        this.artist = artist
+        this.albumId = albumId
+        this.duration = duration
+    }
+
+    // content resolver를 통해서 음원의 id를 가져오면 실제로 id만 가지고 있음
+    // 플레이를 시키려면 음원의 uri주소를 알고 있어야함
+    fun getMusicUri():Uri{
+        //withAppendPath //Baseuri -> MediaStore에 상수로 정의되어있음
+        //두개를 조함하면 음원이 있는 주소가 반환이 되는거임
+        return Uri.withAppendedPath(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,id)
+    }
+
+    //상수로 정규화되어있을지도 모르는데 이전버전까지는 없음
+    fun getAlbumUri(): Uri{
+        //강제로 문자열을 만들어줘야함
+        return Uri.parse("content://media/external/audio/albumart/$albumId")
+        //MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI //-> 이게 안먹힘 EXTERNAL_CONTENT_URI타도 들어가보면 정의 안되어있음..
+    }
+
+}
+```
+
+## activity_main.xml
+
+```
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:listitem="@layout/item_layout" />
+</androidx.constraintlayout.widget.ConstraintLayout>
+```
+
+## item_layout.xml
+
+```
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="100dp">
+
+    <ImageView
+        android:id="@+id/imageAlbum"
+        android:layout_width="90dp"
+        android:layout_height="90dp"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="5dp"
+        android:layout_marginBottom="5dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:srcCompat="@tools:sample/avatars" />
+
+    <TextView
+        android:id="@+id/textArtist"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:text="Artist"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/imageAlbum"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/textTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:text="Title"
+        android:textSize="20sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/imageAlbum"
+        app:layout_constraintTop_toBottomOf="@+id/textArtist" />
+
+    <TextView
+        android:id="@+id/textDuration"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="8dp"
+        android:text="00:00"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+</androidx.constraintlayout.widget.ConstraintLayout>
+```
+
+추가 기능 구현 일시정지 버튼 실행되고 있는 음악을 중단시키는 목록 작성

@@ -1,0 +1,240 @@
+# service
+
+화면이 없는 액티비티
+
+쓰레드에서 공부하는것처럼 백그라운드에서 동작 
+
+하나의 코드가 끝난 다음에 다른 코드가 실행됨
+
+액티비티의 코드를 먼저를 실행하면 끝나고 서비스 코드가 실행됨
+
+백그라운드 → 서비스에서 백그라운드
+
+```
+<service
+    android:name=".MyService"
+    android:enabled="true"
+    android:exported="true"></service>
+```
+
+서비스를 만들게 되면 이렇게 메니페스트가 등록이 됨
+
+[https://www.notion.so/view-View-fun-aa-view-View-53962ff4a7e14b08bb401da3dd2f65b6](https://www.notion.so/view-View-fun-aa-view-View-53962ff4a7e14b08bb401da3dd2f65b6)
+
+이거는 내가 적은 view:View에 대한 자잘한 정리임 
+
+자 이제 코드 정리하자
+
+### MainActivity.kt
+
+```
+package com.gyroh.a10_04_service
+
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.os.IBinder
+import android.view.View
+import com.gyroh.a10_04_service.databinding.ActivityMainBinding
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var serviceIntent:Intent //lateinit을 설정함으로써 함수마다 설정해줄 필요가 없음
+    //그리고 intent는 메인액티비티에 정의되어있어  정의되어 있어서 사용 불가능임 참고
+    //lateinit을 하면 미리 ?= null과 같이 초기화 해줄 필요없음음
+
+   val binding bylazy{ActivityMainBinding.inflate(layoutInflater)}
+
+override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(binding.root)
+        serviceIntent = Intent(this,MyService::class.java) //이렇게 메인에서 정의를 해줌
+
+//        binding.buttonStart.setOnClickListener {
+//            //이런식으로 할 필요없이 아래 정의한것처럼 함수에 대해 view : View를 설정해주고
+//            //xml속성에서 onclick를 원하는 액션을 정의해주면 아주 편안해지고 코드 줄수가 줄어드는 마법을 볼 수 있다.
+//        }
+
+    }
+
+    fun serviceStart(view: View) {  //Startservice는 액티비티에 정의되어있어서 serviceStart()로 정의했음
+//        val intent = Intent(this,MyService::class.java)
+//        intent.action = MyService.ACTION_CREATE
+        //위에처럼 코드를 두줄로 적을필요없이 위에처럼 위에 정의해서
+        serviceIntent.action= MyService.ACTION_CREATE
+        startService(intent)
+    }
+
+    fun serviceStop(view: View) {
+        stopService(intent)
+    }
+
+    //커넥션 만들기
+    var myService : MyService?= null
+    var isService = false //unbind됐을때 호출이 되려고 확인할 방법 isService이용
+    val connection = object : ServiceConnection { //커넥션 구현
+        //bindservice를 하면서 커넥션을 던져주는데 서비스가 호출이 되는데
+        //그리고 그 서비스의 상태변화가 생기면 던져준 ServiceConnection을 연결해서 두 함수중 하나 호출이 되는거임
+        override fun onServiceConnected(p0: ComponentName?, iBinder: IBinder?) {
+            isService = true
+            val binder = iBinder as MyService.MyBinder
+            myService = binder.getService()
+        }
+
+        override fun onServiceDisconnected(p0: ComponentName?) {
+            //일종의 예외가 발생했을때 호출되는 함수 , unbind될때 호출이 안됨
+            //unbind됐을때 호출이 되려고 확인할 방법 isService이용
+            isService = false
+        }
+    }
+
+    fun serviceBind(view : View) {
+        //bindService(intent, 커넥션, 플래그값 )
+        bindService(intent,connection, Context.BIND_AUTO_CREATE)
+    }
+
+    fun serviceCommand() {
+        myService?.create() //null safety
+        myService?.delete()
+    }
+
+    fun serviceUnbind(view : View) {
+
+    }
+
+}
+```
+
+## Myservice.kt
+
+```
+package com.gyroh.a10_04_service
+
+import android.app.Service
+import android.content.Intent
+import android.os.Binder
+import android.os.IBinder
+import android.util.Log
+
+class MyService : Service() {
+    companion object{ //감싸주면 서비스안의 명령어로 액티비티에서 접근할 수 있음
+        val ACTION_CREATE = "create"
+        val ACTION_DELETE = "delete"
+    }
+
+    inner class MyBinder : Binder() { //서비스에 바인드를 해줄때 바인드를 해줄때 바인더를 만들어서 보내줘야함함
+        /*
+        자바에서는 A 클래스 안에 B 클래스를 정의하면 B 클래스는 자동으로 내부 클래스가 되었습니다. 하지만 코틀린에서는 반대입니다.
+        한 클래스안에 다른 클래스를 정의하면 기본적으로는 중첩 클래스가 되고, 내부 클래스로 만들고 싶다면 inner 키워드로 클래스를 선언해야 합니다.
+         내부 클래스는 기본적으로 외부 클래스를 참조하게되지만 중첩 클래스는 그렇지 않습니다.
+         */
+       fun getService() : MyService { //바인터를 통해서 getservice()함수가 호출되면
+           return this@MyService
+       }
+
+    }
+    val binder = MyBinder() //서비스의 binder를 통해서 Mybinder를 꺼낼수 있음
+
+    override fun onBind(intent: Intent): IBinder { //onBind -> boundservice를 하기 위한 함수
+        return MyBinder() //바인더를 통해서 액티비티와 서비스가 연결되는것임을 알 수 있음음
+//       return binder
+    }
+
+    //서비스를 생성되어있으면 그냥 바로 onStartCommand가 호출됨
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+
+        val action = intent?.action
+//이코드는 왜 입력을 하냐면 서비스를 생성하면서 서비스쪽으로 명령어를 날려서 서비스를 지시
+        //그때 intent로 날려줌 그거는 미리 정의를 해줌
+        when(action){
+            ACTION_CREATE -> create()
+            ACTION_DELETE -> delete()
+        }
+
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    fun create() {
+        Log.d("서비스","create()가 호출됨")
+    }
+    fun delete(){
+        Log.d("서비스","delete()가 호출됨")
+    }
+}
+```
+
+## activity_main.xml
+
+```
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Hello World!"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/buttonStart"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:onClick="serviceStart"
+        android:text="서비스 스타트"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/buttonStop"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <Button
+        android:id="@+id/buttonStop"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:onClick="serviceStop"
+        android:text="서비스 스탑"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toEndOf="@+id/buttonStart" />
+
+    <Button
+        android:id="@+id/button3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="32dp"
+        android:onClick="serviceBind"
+        android:text="서비스 바인드"
+        app:layout_constraintBottom_toTopOf="@+id/buttonStart"
+        app:layout_constraintEnd_toStartOf="@+id/button4"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <Button
+        android:id="@+id/button4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="32dp"
+        android:onClick="serviceUnbind"
+        android:text="언 바인드"
+        app:layout_constraintBottom_toTopOf="@+id/buttonStop"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toEndOf="@+id/button3" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+```
+
+서비스는 포어그라운드 서비스로 많이 사용하게 됨

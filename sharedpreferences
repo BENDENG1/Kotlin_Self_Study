@@ -1,0 +1,89 @@
+# Shared Preference
+
+마치 처음 앱을 사용하는 사람에게 어떤 것을 보여준다던가 그런것과 같이 간단한 값을 설정하는 그리고 저장하는 것에 대해서 사용한다고 보면된다.
+
+작은 상태값을 사용할때 이용을 하면 손쉽게 이요할 수 이
+
+```
+package com.gyroh.a10_03_sharedpreference
+
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.view.View
+import com.gyroh.a10_03_sharedpreference.databinding.ActivityMainBinding
+
+class MainActivity : AppCompatActivity() {
+
+    //아래에 하게되면 오타가 날수도 있으니 companion object로 이용해
+    companion object {
+        const val KEY_FIRST_OPEN = "key_first_open"
+    }
+
+    val binding bylazy{ActivityMainBinding.inflate(layoutInflater)}
+
+override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(binding.root)
+
+        val shared = getSharedPreferences("파일명", Context.MODE_PRIVATE) //모드를 주는데 private로 항상 줌
+        //요 파일명으로 저장되어있는 preference를 가져올수 있음
+
+        val first_open = shared.getBoolean(KEY_FIRST_OPEN, false)
+//        val first_open = shared.getString("key_first_open", "처음")
+
+        if(first_open){
+            binding.hello.visibility= View.GONE
+}
+//        if(first_open != "처음"){
+//            binding.hello.visibility = View.GONE
+//        }
+
+        //shared값을 저장할때는 edit을 열어줌
+        val editor = shared.edit() //수정을 위한 에디터를 꺼낸다
+        editor.putBoolean(KEY_FIRST_OPEN,true)
+//        editor.putString("key_first_open","두번째")
+        editor.commit()
+
+    }
+}
+```
+
+메인.kt
+
+```
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/hello"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Hello World!"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+```
+
+메인.xml
+
+앱을 한번더 다시 실행을 하게되면
+
+Device File Explorer → data → 앱이름 → shared_prefs로 가면 파일명.xml에 
+
+```
+<map>
+    <boolean name="key_first_open" value="true" />
+</map>
+```
+
+이렇게 저장이 되어있을것이다.

@@ -1,0 +1,150 @@
+# coroutine
+
+### 코루틴이란!
+
+1. **협력형 멀티 태스킹**
+2. 동시성 프로그래밍 지원
+3. 비동기 처리를 쉽게 도와줌
+
+![Untitled](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/1330593d-a91e-403d-bc26-75cd2c8099f7/Untitled.png)
+
+![Untitled](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/b78ae26b-fa3f-49fb-b85c-2c793f2fe5f5/Untitled.png)
+
+코루틴은 이와 진입점도 여러개고 함수를 빠져나갈수 있는 탈출점도 여러개다.
+
+언제든지 중간에 나갈수 있고, 언제든지 다시 나갔던 그 지점으로 들어올 수 있다.
+
+# 코루틴을 이용한 이미지 다운로드 코드
+
+### mainactivity.kt
+
+```
+package com.gyroh.a10_04_coroutine
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.view.View
+import com.gyroh.a10_04_coroutine.databinding.ActivityMainBinding
+import kotlinx.coroutines.*
+import java.net.URL
+
+class MainActivity : AppCompatActivity() {
+
+    val binding bylazy{ActivityMainBinding.inflate(layoutInflater)}
+
+override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(binding.root)
+
+with(binding){
+buttonDownload.setOnClickListener{
+CoroutineScope(Dispatchers.Main).launch{//어떤 스레드에서 스코프에서 동작하는지 명시해줘야 dispathcers안에 그 영역이 표시되어있음
+                    progress.visibility= View.VISIBLE//다운로드 버튼이 클릭되면 코루틴이라는 영역이 생성되고
+                    //메인영역에서는 화면을 작동할수 있으니 프로그래스를 활성시켜줌 -> 워낙 빨라서 보이지 않을수도 있음
+                    val url = editUrl.text.toString()
+
+                    //함수에 넘겨줄텐데 그냥 loadImage(url)로 넘겨주는데 메인에서 실행되는데 메인스코프 같은 경우에는 통신을 할수 없음 (파일 읽기등)
+                    //loadImage만 메인스코프가 아니라 IO스코프에서 진행되게 함
+                    val bitmap = withContext(Dispatchers.IO){
+loadImage(url) //반환값은 withconext의 반환값으로 쓸수 있으므로 변수로 선언해준다. (val bit map = ~~)
+}
+
+imagePreview.setImageBitmap(bitmap)
+                    progress.visibility= View.INVISIBLE
+}
+            }
+        }
+}
+
+}
+
+//코루틴을 쓸때는 함수를 만들어야함
+//코루틴에 작성된는 함수는 클래스와 같은 탑레벨에 작성 oncreate는 클래스 스코프안에 들어가있고
+//suspend를 작성을 꼭해야함
+
+suspend fun loadImage(imageUrl:String) : Bitmap {
+    val url = URL(imageUrl) //이미지url을 url로 변환시켜준다.
+    val stream = url.openStream()  //주소에 있는것을 스트림으로 연다.
+
+    return BitmapFactory.decodeStream(stream) //Bitmapfactory를 사용하면 stream으로 받는 데이터를 bitmap으로 변환가능
+    /*
+    다운로드 받으면 비트맵으로 돌려주는데 loadImage함수에는 이미지주소가 전달되는순간 비트맵을 반환해준다.
+     */
+}
+```
+
+### activity_main.xml
+
+```
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <EditText
+        android:id="@+id/editUrl"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="8dp"
+        android:ems="10"
+        android:hint="여기에 URL을 입력하세요."
+        android:inputType="textPersonName"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/buttonDownload"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <Button
+        android:id="@+id/buttonDownload"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="8dp"
+        android:text="다운로드"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <ImageView
+        android:id="@+id/imagePreview"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toTopOf="@+id/editUrl"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:srcCompat="@tools:sample/avatars" />
+
+    <ProgressBar
+        android:id="@+id/progress"
+        style="?android:attr/progressBarStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+```
+
+여기서 우리는 url을 따와서 진행을 하기 떼문에
+
+androidmanifest.xml에
+
+`<uses-permission android:name="android.permission.INTERNET"/>` 권한을 설정해줘야 한다.
+
+또한 buildgradle에서
+
+```
+//코루틴을 위한 설정
+implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.3.9'
+```
+
+를 추가해줘야 진행을 할 수 있다.
